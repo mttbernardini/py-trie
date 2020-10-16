@@ -421,9 +421,33 @@ class HexaryTrie:
             else:
                 return updated_proof
         elif node_type == NODE_TYPE_BRANCH:
+            # NOTICE:
+            # this branch collapses if its value is deleted and it has only one child (scenario 1),
+            # or it has two children and one of them is deleted, only if branch itself has no value (scenario 2).
+            children = tuple(filter(lambda h: h != BLANK_NODE, node[:-1]))
+
             if not unproven_key:
+                # scenario 1:
+                # key is for branch node which has only one child (branch must have a value to actually exist).
+                # delete(key) → the branch node is deleted → the only child collapses upwards
+                # >> child node must be attached the proof
+                if len(children) == 1:
+                    child_node = self.get_node(children[0])
+                    updated_proof = updated_proof + (child_node,)
                 return updated_proof
-            next_node = self.get_node(node[unproven_key[0]])
+
+            next_node_hash = node[unproven_key[0]]
+            next_node = self.get_node(next_node_hash)
+            next_node_type = get_node_type(next_node)
+
+            # scenario 2:
+            # key goes to a leaf which has only one sibling node, branch has no value.
+            # delete(key) → that leaf is deleted → its sibling node collapses upwards
+            # >> sibling node must be attached to the proof
+            if len(children) == 2 and next_node_type == NODE_TYPE_LEAF and node[16] == BLANK_NODE:
+                sibling_node = self.get_node(next(filter(lambda n: n != next_node_hash, children)))
+                updated_proof = updated_proof + (sibling_node,)
+
             new_proven_len = proven_len + 1
             return self._get_proof(next_node, trie_key, new_proven_len, updated_proof)
         else:
